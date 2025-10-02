@@ -1,0 +1,18 @@
+{
+    "llm":{
+        "model":"gpt-3.5-turbo"
+    },
+    "embedding":{
+        "customer_insight": {
+            "model":"paraphrase-multilingual-mpnet-base-v2",
+            "collection_name": "customer_reviews"
+        }
+        
+    },
+    "prompt_templates":{
+        "path":"../../prompts",
+        "templates": {
+            "customer_insights": "customer_insights"
+        }
+    }
+}
