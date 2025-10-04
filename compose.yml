@@ -1,0 +1,80 @@
+services:
+#   chroma:
+#     image: chromadb/chroma
+#     container_name: chroma_db
+#     ports:
+#       - "8001:8000"
+      
+#     volumes:
+#       - chroma-data:/chroma/.chroma/
+#     environment:
+#       - IS_PERSISTENT=TRUE
+#       - ANONYMIZED_TELEMETRY=FALSE
+
+# volumes:
+#   chroma-data:
+#     driver: local
+
+  # ----------------------------------------
+  # 1. etcd (Required Dependency: Metadata Storage)
+  # ----------------------------------------
+  milvus-etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_USE_SELF_HOSTNAME=true
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_INITIAL_CLUSTER=milvus-etcd=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://0.0.0.0:2380
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+
+  # ----------------------------------------
+  # 2. MinIO (Required Dependency: Object Storage)
+  # ----------------------------------------
+  milvus-minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z # Use a recent, stable release
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    ports:
+      - "9000:9000"
+      - "9091:9091" # MinIO console port
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/data
+    command: minio server /data --console-address ":9091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ----------------------------------------
+  # 3. Milvus Standalone (The Vector Database)
+  # ----------------------------------------
+  milvus-standalone:
+    container_name: milvus-standalone
+    # Use the latest stable tag (check Milvus GitHub releases for the most current version)
+    image: milvusdb/milvus:v2.6.2 
+    command: ["milvus", "run", "standalone"]
+    environment:
+      # These environment variables tell Milvus how to connect to its dependencies
+      - ETCD_ENDPOINTS=milvus-etcd:2379
+      - MINIO_ADDRESS=milvus-minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+    ports:
+      - "19530:19530" # The main Milvus service port
+      - "9091:9091"  # Optional: Attu/WebUI access (if not using the minio port)
+    depends_on:
+      - milvus-etcd
+      - milvus-minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3

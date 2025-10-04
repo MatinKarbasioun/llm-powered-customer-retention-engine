@@ -1,10 +1,15 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pydantic import (
+    
+)
+
 class Settings(BaseSettings):
     OPENAI_API_KEY: str 
     KAGGLE_USERNAME: str
     KAGGLE_KEY: str
     HF_TOKEN: str
+    VECTOR_DB_DIR: 
     domains: set[str] = set()
 
     more_settings: SubModel = SubModel()
